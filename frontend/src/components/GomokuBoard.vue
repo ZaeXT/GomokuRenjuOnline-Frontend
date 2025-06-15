@@ -6,6 +6,9 @@
       :viewBox="`0 0 ${boardSize} ${boardSize}`"
       xmlns="http://www.w3.org/2000/svg"
       @click="handleClick"
+      @mousemove="handleMovement"
+      @mouseleave="ghostPiece.visible = false"
+      @mouseenter="ghostPiece.visible = true"
     >
       <!-- 1. 棋盘背景 (一个带边框的矩形) -->
       <rect 
@@ -59,7 +62,17 @@
           :cx="piece.cx" 
           :cy="piece.cy" 
           r="18" 
-          :class="`player-${piece.player}`"
+          :class="`player-${piece.player-1}`"
+        />
+      </g>
+
+      <!-- 6. 绘制幽灵棋子 -->
+       <g class="ghost-piece" v-if="ghostPiece.visible">
+        <circle 
+          :cx="ghostPiece.cx" 
+          :cy="ghostPiece.cy" 
+          r="18" 
+          :class="`player-${CurrentPlayer}`"
         />
       </g>
 
@@ -103,6 +116,8 @@ const BalanceBreaker = ref({ 'DoubleThree': false, 'DoubleFour': false, 'Overlin
 const Winner = ref(null);
 // 游戏结束
 const GameOver = ref(false);
+// 获胜条件
+const winPieces = ref(5);
 // const board = computed(() => {
 //   return Array(GoBoardVisibleSize.value).fill(0).map(() => Array(GoBoardVisibleSize.value).fill(0));
 // });
@@ -147,6 +162,16 @@ const starPoints = computed(() => {
   ];
   return points.map(p => ({ x: svgPos(p.x), y: svgPos(p.y) }));
 });
+
+// 幽灵棋子
+const ghostPiece = ref(
+  {
+    cx: 0,
+    cy: 0,
+    visible: false
+  }
+)
+
 // 线条计算
 function svgPos(index) {
   return PADDING + index * CELL_SIZE;
@@ -169,6 +194,7 @@ function handleClick(event) {
   const dataX = visibleX + visibleBoardDataPos.value.start;
   const dataY = visibleY + visibleBoardDataPos.value.start;
   if (boardData[dataY][dataX] === 0) {
+    ghostPiece.value.visible = false;
     boardData[dataY][dataX] = CurrentPlayer.value + 1;
     DataModificationVersion.value++;
     PieceCount.value++;
@@ -183,6 +209,22 @@ function handleClick(event) {
   }
   console.log(`Clicked at (${visibleX}, ${visibleY}) - Data position: (${dataX}, ${dataY})`, "Data", boardData[dataY][dataX]);
 
+}
+function handleMovement(event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const visibleX = Math.round((event.clientX - rect.left - PADDING) / CELL_SIZE);
+  const visibleY = Math.round((event.clientY - rect.top - PADDING) / CELL_SIZE);
+  if (visibleX < 0 || visibleX >= GoBoardVisibleSize.value || visibleY < 0 || visibleY >= GoBoardVisibleSize.value) {
+    ghostPiece.value.visible = false; // 鼠标移出棋盘区域
+    return;
+  }
+  if (boardData[visibleY + visibleBoardDataPos.value.start][visibleX + visibleBoardDataPos.value.start] !== 0) {
+    ghostPiece.value.visible = false; // 鼠标移到已占用位置
+    return;
+  }
+  ghostPiece.value.cx = svgPos(visibleX);
+  ghostPiece.value.cy = svgPos(visibleY);
+  ghostPiece.value.visible = true;
 }
 function checkExpansion() {
   const currentAreaSize = GoBoardVisibleSize.value * GoBoardVisibleSize.value;
@@ -205,92 +247,39 @@ function checkBalanceBreaker(Y, X) {
 function checkGameOver(Y, X) { 
   if (GameOver.value) return;
   console.log(`Checking game over conditions for player ${boardData[Y][X]} at (${Y}, ${X})`);
-  if ( boardData[Y][X] === boardData[Y][X - 1] && // 横向五连中
-       boardData[Y][X] === boardData[Y][X + 1] && 
-       boardData[Y][X] === boardData[Y][X - 2] && 
-    boardData[Y][X] === boardData[Y][X + 2] || 
-       boardData[Y][X] === boardData[Y - 1][X] && // 竖向五连中
-       boardData[Y][X] === boardData[Y + 1][X] && 
-       boardData[Y][X] === boardData[Y - 2][X] &&
-       boardData[Y][X] === boardData[Y + 2][X] || 
-       boardData[Y][X] === boardData[Y - 1][X - 1] && // 左斜五连中
-       boardData[Y][X] === boardData[Y + 1][X + 1] &&
-       boardData[Y][X] === boardData[Y - 2][X - 2] &&
-       boardData[Y][X] === boardData[Y + 2][X + 2] || 
-    boardData[Y][X] === boardData[Y - 1][X + 1] && // 右斜五连中
-    boardData[Y][X] === boardData[Y + 1][X - 1] &&
-       boardData[Y][X] === boardData[Y - 2][X + 2] &&
-    boardData[Y][X] === boardData[Y + 2][X - 2] || 
-    boardData[Y][X] === boardData[Y][X - 1] && // 横向五连右1
-      boardData[Y][X] === boardData[Y][X + 1] &&
-      boardData[Y][X] === boardData[Y][X - 2] &&
-    boardData[Y][X] === boardData[Y][X - 3] || 
-    boardData[Y][X] === boardData[Y][X - 1] && // 横向五连左1
-      boardData[Y][X] === boardData[Y][X + 1] &&
-      boardData[Y][X] === boardData[Y][X + 2] &&
-    boardData[Y][X] === boardData[Y][X + 3] || 
-    boardData[Y][X] === boardData[Y - 1][X] && // 竖向五连下1
-    boardData[Y][X] === boardData[Y + 1][X] &&
-    boardData[Y][X] === boardData[Y + 2][X] &&
-    boardData[Y][X] === boardData[Y + 3][X] ||
-    boardData[Y][X] === boardData[Y - 1][X] && // 竖向五连上1
-      boardData[Y][X] === boardData[Y + 1][X] &&
-  boardData[Y][X] === boardData[Y - 2][X] &&
-    boardData[Y][X] === boardData[Y - 3][X] || 
-    boardData[Y][X] === boardData[Y - 1][X - 1] && // 左斜五连右1
-    boardData[Y][X] === boardData[Y + 1][X + 1] &&
-    boardData[Y][X] === boardData[Y - 2][X - 2] &&
-    boardData[Y][X] === boardData[Y - 3][X - 3] ||
-    boardData[Y][X] === boardData[Y - 1][X - 1] && // 左斜五连左1
-    boardData[Y][X] === boardData[Y + 1][X + 1] &&
-    boardData[Y][X] === boardData[Y + 2][X + 2] &&
-    boardData[Y][X] === boardData[Y + 3][X + 3] ||
-    boardData[Y][X] === boardData[Y - 1][X + 1] && // 右斜五连右1
-    boardData[Y][X] === boardData[Y + 1][X - 1] &&
-    boardData[Y][X] === boardData[Y - 2][X + 2] &&
-    boardData[Y][X] === boardData[Y - 3][X + 3] ||
-    boardData[Y][X] === boardData[Y - 1][X + 1] && // 右斜五连左1
-    boardData[Y][X] === boardData[Y + 1][X - 1] &&
-    boardData[Y][X] === boardData[Y + 2][X - 2] &&
-    boardData[Y][X] === boardData[Y + 3][X - 3] ||
-    boardData[Y][X] === boardData[Y][X - 1] && // 横向五连右2
-    boardData[Y][X] === boardData[Y][X - 2] &&
-  boardData[Y][X] === boardData[Y][X - 3] &&
-    boardData[Y][X] === boardData[Y][X - 4] ||
-    boardData[Y][X] === boardData[Y][X + 1] && // 横向五连左2
-    boardData[Y][X] === boardData[Y][X + 2] &&
-    boardData[Y][X] === boardData[Y][X + 3] &&
-    boardData[Y][X] === boardData[Y][X + 4] ||
-    boardData[Y][X] === boardData[Y + 1][X] && // 竖向五连下2
-    boardData[Y][X] === boardData[Y + 2][X] &&
-    boardData[Y][X] === boardData[Y + 3][X] &&
-    boardData[Y][X] === boardData[Y + 4][X] ||
-    boardData[Y][X] === boardData[Y - 1][X] && // 竖向五连上2
-    boardData[Y][X] === boardData[Y - 2][X] &&
-    boardData[Y][X] === boardData[Y - 3][X] &&
-    boardData[Y][X] === boardData[Y - 4][X] ||
-    boardData[Y][X] === boardData[Y - 1][X - 1] && // 左斜五连右2
-    boardData[Y][X] === boardData[Y - 2][X - 2] &&
-    boardData[Y][X] === boardData[Y - 3][X - 3] &&
-    boardData[Y][X] === boardData[Y - 4][X - 4] ||
-    boardData[Y][X] === boardData[Y + 1][X + 1] && // 左斜五连左2
-    boardData[Y][X] === boardData[Y + 2][X + 2] &&
-    boardData[Y][X] === boardData[Y + 3][X + 3] &&
-    boardData[Y][X] === boardData[Y + 4][X + 4] ||
-    boardData[Y][X] === boardData[Y - 1][X + 1] && // 右斜五连右2
-    boardData[Y][X] === boardData[Y - 2][X + 2] &&
-    boardData[Y][X] === boardData[Y - 3][X + 3] &&
-    boardData[Y][X] === boardData[Y - 4][X + 4] ||
-    boardData[Y][X] === boardData[Y + 1][X - 1] && // 右斜五连左2
-    boardData[Y][X] === boardData[Y + 2][X - 2] &&
-    boardData[Y][X] === boardData[Y + 3][X - 3] &&
-    boardData[Y][X] === boardData[Y + 4][X - 4]
-) {
-        Winner.value = boardData[Y][X];
-        GameOver.value = true;
-        console.log(`Player ${Winner.value} wins!`);
-    return; // 检查到胜利条件，游戏结束
+
+  const checkDirections = [
+    { dx: 1, dy: 0 }, // 横向
+    { dx: 0, dy: 1 }, // 竖向
+    { dx: 1, dy: 1 }, // 左斜
+    { dx: -1, dy: 1 } // 右斜
+  ];
+
+  for (const Direction of checkDirections) {
+    let cnt = 1;
+    for (let step = 1; step < winPieces.value; step++) {
+      if (boardData[Y + Direction.dy * step] && 
+          boardData[Y + Direction.dy * step][X + Direction.dx * step] === boardData[Y][X]) {
+        cnt++;
+      } else {
+        break;
+      }
+
+      if (boardData[Y - Direction.dy * step] && 
+          boardData[Y - Direction.dy * step][X - Direction.dx * step] === boardData[Y][X]) {
+        cnt++;
+      } else {
+        break;
+      }
+    }
+    if (cnt >= winPieces.value) {
+      Winner.value = boardData[Y][X];
+      GameOver.value = true;
+      console.log(`Player ${Winner.value} wins!`);
+      return;
+    }
   }
+
 }
 
 </script>
@@ -328,12 +317,17 @@ svg {
   stroke-width: 1px;
 }
 
-.player-1 {
+.ghost-piece circle {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.player-0 {
   fill: #111;
   stroke: #555;
 }
 
-.player-2 {
+.player-1 {
   fill: #eee;
   stroke: #bbb;
 }
