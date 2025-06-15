@@ -5,6 +5,7 @@
       :height="boardSize" 
       :viewBox="`0 0 ${boardSize} ${boardSize}`"
       xmlns="http://www.w3.org/2000/svg"
+      @click="handleClick"
     >
       <!-- 1. 棋盘背景 (一个带边框的矩形) -->
       <rect 
@@ -18,24 +19,24 @@
       <!-- 2. 绘制所有横线 -->
       <g class="board-lines">
         <line 
-          v-for="i in GoBoardSize" 
+          v-for="i in GoBoardVisibleSize" 
           :key="'h' + i"
-          :x1="PADDING" 
-          :y1="LinePos(i - 1)" 
-          :x2="boardSize - PADDING" 
-          :y2="LinePos(i - 1)"
+          :x1="svgPos(0)" 
+          :y1="svgPos(i - 1)" 
+          :x2="svgPos(GoBoardVisibleSize - 1)" 
+          :y2="svgPos(i - 1)"
         />
       </g>
 
       <!-- 3. 绘制所有竖线 -->
       <g class="board-lines">
         <line 
-          v-for="i in GoBoardSize" 
+          v-for="i in GoBoardVisibleSize" 
           :key="'v' + i"
-          :x1="LinePos(i - 1)" 
-          :y1="PADDING" 
-          :x2="LinePos(i - 1)" 
-          :y2="boardSize - PADDING"
+          :x1="svgPos(i - 1)" 
+          :y1="svgPos(0)" 
+          :x2="svgPos(i - 1)" 
+          :y2="svgPos(GoBoardVisibleSize - 1)"
         />
       </g>
       
@@ -46,13 +47,51 @@
           :key="'star' + index"
           :cx="point.x"
           :cy="point.y"
-          r="4" 
+          r="5" 
         />
       </g>
 
-      <!-- 5. 之后棋子也会被渲染在这里 -->
+      <!-- 5. 渲染棋子 -->
+      <g class="pieces">
+        <circle 
+          v-for="piece in visiblePieces" 
+          :key="`${piece.dataX}-${piece.dataY}`"
+          :cx="piece.cx" 
+          :cy="piece.cy" 
+          r="18" 
+          :class="`player-${piece.player}`"
+        />
+      </g>
 
     </svg>
+    <!-- <div class="info">
+      <p>当前棋手: {{ CurrentPlayer }}</p>
+      <p>棋子总数: {{ PieceCount }}</p>
+      <p>棋盘大小: {{ GoBoardVisibleSize }}x{{ GoBoardVisibleSize }}</p>
+      <p>数据修改版本: {{ DataModificationVersion }}</p>
+      <p>棋手数量: {{ PlayerCount }}</p>
+      <p>棋盘数据位置: {{ visibleBoardDataPos.start }} - {{ visibleBoardDataPos.end }}</p>
+      <p>棋盘数据大小: {{ DATA_GRID_SIZE }}x{{ DATA_GRID_SIZE }}</p>
+      <p>棋盘总大小: {{ boardSize }}px</p>
+      <p>棋盘格子大小: {{ CELL_SIZE }}px</p>
+      <p>棋盘边距: {{ PADDING }}px</p>
+      <p>棋盘星位: {{ starPoints.map(p => `(${p.x}, ${p.y})`).join(', ') }}</p>
+      <p>棋盘可见棋子: {{ visiblePieces.length }}</p>
+      <p>棋盘可见棋子位置: {{ visiblePieces.map(p => `(${p.dataX}, ${p.dataY})`).join(', ') }}</p>
+      <p>棋盘可见棋子坐标: {{ visiblePieces.map(p => `(${p.cx}, ${p.cy})`).join(', ') }}</p>
+      <p>棋盘可见棋子玩家: {{ visiblePieces.map(p => p.player).join(', ') }}</p>
+      <p>棋盘可见棋子数据: {{ visiblePieces }}</p>
+      <p>棋盘可见棋子数据位置: {{ visibleBoardDataPos }}</p>
+      <p>棋盘可见棋子数据大小: {{ GoBoardVisibleSize * GoBoardVisibleSize }}</p>
+      <p>棋盘可见棋子数据修改版本: {{ DataModificationVersion }}</p>
+      <p>棋盘可见棋子数据修改次数: {{ PieceCount }}</p>
+      <p>棋盘可见棋子数据修改进度: {{ (PieceCount / (GoBoardVisibleSize * GoBoardVisibleSize) * 100).toFixed(2) }}%</p>
+      <p>棋盘可见棋子数据修改阈值: {{ (GoBoardVisibleSize * GoBoardVisibleSize * 0.8).toFixed(2) }}</p>
+      <p>棋盘可见棋子数据修改触发: {{ PieceCount >= (GoBoardVisibleSize * GoBoardVisibleSize * 0.8) ? '是' : '否' }}</p>
+      <p>棋盘可见棋子数据修改后棋盘大小: {{ GoBoardVisibleSize }}</p>
+      <p>棋盘可见棋子数据修改后棋盘大小: {{ GoBoardVisibleSize * GoBoardVisibleSize }}</p>
+      <p>棋盘可见棋子数据修改后棋盘大小: {{ GoBoardVisibleSize * CELL_SIZE + PADDING * 2 }}px</p>
+    </div> -->
   </div>
 </template>
 
@@ -60,23 +99,67 @@
 import { ref, computed } from 'vue';
 
 
-//棋盘大小
-const GoBoardSize = ref(25);
-//格子大小
+// 棋局上限
+const DATA_GRID_SIZE = 4096;
+// 格子大小
 const CELL_SIZE = 40;
-//棋盘边距
+// 棋盘边距
 const PADDING = 20;
-//棋盘总大小
+// 棋盘总大小
 const boardSize = computed(() => {
-  return (GoBoardSize.value - 1) * CELL_SIZE + PADDING * 2;
+  return (GoBoardVisibleSize.value - 1) * CELL_SIZE + PADDING * 2;
 });
-//棋盘数据
-const board = computed(() => {
-  return Array(GoBoardSize.value).fill(0).map(() => Array(GoBoardSize.value).fill(0));
+// 棋盘数据
+const boardData = createDataGrid(DATA_GRID_SIZE);
+function createDataGrid(size) {
+  console.log(`Initializing a huge ${size}x${size} data grid...`);
+  return Array(size).fill(0).map(() => Array(size).fill(0));
+}
+// 棋盘大小
+const GoBoardVisibleSize = ref(15);
+// 棋子个数
+const PieceCount = ref(0);
+// 棋手个数
+const PlayerCount = ref(2);
+// 当前棋手
+const CurrentPlayer = ref(0);
+// 修改进度
+const DataModificationVersion = ref(0);
+// const board = computed(() => {
+//   return Array(GoBoardVisibleSize.value).fill(0).map(() => Array(GoBoardVisibleSize.value).fill(0));
+// });
+// 棋子数据位置
+const visibleBoardDataPos = computed(() => {
+  const dataCenterPos = Math.floor(DATA_GRID_SIZE / 2);
+  const halfVisibleSize = Math.floor(GoBoardVisibleSize.value / 2);
+  const start = dataCenterPos - halfVisibleSize;
+  const end = dataCenterPos + halfVisibleSize;
+  return { start, end };
 });
-//棋盘星位
+// 提取棋子数据
+const visiblePieces = computed(() => {
+  DataModificationVersion.value;
+  const pieces = [];
+  const { start, end } = visibleBoardDataPos.value;
+  for (let y = start; y <= end; y++) {
+    for (let x = start; x <= end; x++) {
+      if (boardData[y][x] !== 0) {
+        pieces.push({
+          dataX: x,
+          dataY: y,
+          cx: svgPos(x - start),
+          cy: svgPos(y - start),
+          player: boardData[y][x]
+        });
+      }
+    }
+  }
+  return pieces;
+})
+
+// 棋盘星位
 const starPoints = computed(() => {
-  const center = Math.floor(GoBoardSize.value / 2); // 7
+  const center = Math.floor(GoBoardVisibleSize.value / 2); // 7
   const points = [
     { x: center, y: center }, // 天元
     { x: center - 4, y: center - 4 }, // 左上角
@@ -84,18 +167,52 @@ const starPoints = computed(() => {
     { x: center + 4, y: center - 4 }, // 右上角
     { x: center + 4, y: center + 4 } // 右下角
   ];
-  return points.map(p => ({ x: LinePos(p.x), y: LinePos(p.y) }));
+  return points.map(p => ({ x: svgPos(p.x), y: svgPos(p.y) }));
 });
-//线条计算
-const LinePos = (index) => PADDING + index * CELL_SIZE;
-window.changeBoardSize = (newSize) => {
-  GoBoardSize.value = newSize;
-  console.log('Board size changed to:', newSize);
-  console.log('New SVG size:', boardSize.value);
-  console.log('New board model:', board.value);
-};
+// 线条计算
+function svgPos(index) {
+  return PADDING + index * CELL_SIZE;
+}
+// 点击事件处理
+function handleClick(event) {
+  console.log("Current player:", CurrentPlayer.value);
+  const rect = event.currentTarget.getBoundingClientRect();
+  console.log("SVG rect:", rect);
+  const visibleX = Math.round((event.clientX - rect.left - PADDING) / CELL_SIZE);
+  const visibleY = Math.round((event.clientY - rect.top - PADDING) / CELL_SIZE);
+  console.log(`Clicked at (${visibleX}, ${visibleY}) relative to SVG`);
+  if (visibleX < 0 || visibleX >= GoBoardVisibleSize.value || visibleY < 0 || visibleY >= GoBoardVisibleSize.value) {
+    return; // 点击在棋盘外
+  }
+  const dataX = visibleX + visibleBoardDataPos.value.start;
+  const dataY = visibleY + visibleBoardDataPos.value.start;
+  if (boardData[dataY][dataX] === 0) {
+    boardData[dataY][dataX] = CurrentPlayer.value + 1;
+    DataModificationVersion.value++;
+    PieceCount.value++;
+    CurrentPlayer.value = (CurrentPlayer.value + 1) % PlayerCount.value; // 切换棋手
+    checkExpansion();
+  }
+  else {
+    console.log(`Position (${dataX}, ${dataY}) already occupied by player ${boardData[dataY][dataX]}`);
+    return; // 位置已被占用
+  }
+  console.log(`Clicked at (${visibleX}, ${visibleY}) - Data position: (${dataX}, ${dataY})`, "Data", boardData[dataY][dataX]);
 
-console.log(board.value);
+}
+function checkExpansion() {
+  const currentAreaSize = GoBoardVisibleSize.value * GoBoardVisibleSize.value;
+  const threshold = currentAreaSize * 0.8;
+  if (PieceCount.value >= threshold) {
+    console.log("Expansion triggered!");
+    let newSize = Math.floor(GoBoardVisibleSize.value * 1.5);
+    if (newSize % 2 === 0) {
+      newSize++; // 确保新大小为奇数
+    }
+    GoBoardVisibleSize.value = newSize;
+    console.log(`Board size expanded to ${newSize}x${newSize}`);
+  }
+}
 
 </script>
 
@@ -126,6 +243,37 @@ console.log(board.value);
 svg {
   box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.5);
   border-radius: 4px; /* 轻微的圆角让阴影更好看 */
+}
+
+.pieces circle {
+  stroke-width: 1px;
+}
+
+.player-1 {
+  fill: #111;
+  stroke: #555;
+}
+
+.player-2 {
+  fill: #eee;
+  stroke: #bbb;
+}
+
+.game-info {
+  margin-top: 20px;
+  padding: 10px;
+  background-color: #f0f0f0;
+  border-radius: 8px;
+  box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
+}
+
+.black-piece-text {
+  font-weight: bold;
+  color: black;
+}
+.white-piece-text {
+  font-weight: bold;
+  color: #555;
 }
 
 </style>
