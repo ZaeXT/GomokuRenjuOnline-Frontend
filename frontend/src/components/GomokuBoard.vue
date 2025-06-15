@@ -51,7 +51,7 @@
         />
       </g>
 
-      <!-- 5. 渲染棋子 -->
+      <!-- 5. 绘制棋子 -->
       <g class="pieces">
         <circle 
           v-for="piece in visiblePieces" 
@@ -64,34 +64,6 @@
       </g>
 
     </svg>
-    <!-- <div class="info">
-      <p>当前棋手: {{ CurrentPlayer }}</p>
-      <p>棋子总数: {{ PieceCount }}</p>
-      <p>棋盘大小: {{ GoBoardVisibleSize }}x{{ GoBoardVisibleSize }}</p>
-      <p>数据修改版本: {{ DataModificationVersion }}</p>
-      <p>棋手数量: {{ PlayerCount }}</p>
-      <p>棋盘数据位置: {{ visibleBoardDataPos.start }} - {{ visibleBoardDataPos.end }}</p>
-      <p>棋盘数据大小: {{ DATA_GRID_SIZE }}x{{ DATA_GRID_SIZE }}</p>
-      <p>棋盘总大小: {{ boardSize }}px</p>
-      <p>棋盘格子大小: {{ CELL_SIZE }}px</p>
-      <p>棋盘边距: {{ PADDING }}px</p>
-      <p>棋盘星位: {{ starPoints.map(p => `(${p.x}, ${p.y})`).join(', ') }}</p>
-      <p>棋盘可见棋子: {{ visiblePieces.length }}</p>
-      <p>棋盘可见棋子位置: {{ visiblePieces.map(p => `(${p.dataX}, ${p.dataY})`).join(', ') }}</p>
-      <p>棋盘可见棋子坐标: {{ visiblePieces.map(p => `(${p.cx}, ${p.cy})`).join(', ') }}</p>
-      <p>棋盘可见棋子玩家: {{ visiblePieces.map(p => p.player).join(', ') }}</p>
-      <p>棋盘可见棋子数据: {{ visiblePieces }}</p>
-      <p>棋盘可见棋子数据位置: {{ visibleBoardDataPos }}</p>
-      <p>棋盘可见棋子数据大小: {{ GoBoardVisibleSize * GoBoardVisibleSize }}</p>
-      <p>棋盘可见棋子数据修改版本: {{ DataModificationVersion }}</p>
-      <p>棋盘可见棋子数据修改次数: {{ PieceCount }}</p>
-      <p>棋盘可见棋子数据修改进度: {{ (PieceCount / (GoBoardVisibleSize * GoBoardVisibleSize) * 100).toFixed(2) }}%</p>
-      <p>棋盘可见棋子数据修改阈值: {{ (GoBoardVisibleSize * GoBoardVisibleSize * 0.8).toFixed(2) }}</p>
-      <p>棋盘可见棋子数据修改触发: {{ PieceCount >= (GoBoardVisibleSize * GoBoardVisibleSize * 0.8) ? '是' : '否' }}</p>
-      <p>棋盘可见棋子数据修改后棋盘大小: {{ GoBoardVisibleSize }}</p>
-      <p>棋盘可见棋子数据修改后棋盘大小: {{ GoBoardVisibleSize * GoBoardVisibleSize }}</p>
-      <p>棋盘可见棋子数据修改后棋盘大小: {{ GoBoardVisibleSize * CELL_SIZE + PADDING * 2 }}px</p>
-    </div> -->
   </div>
 </template>
 
@@ -125,6 +97,12 @@ const PlayerCount = ref(2);
 const CurrentPlayer = ref(0);
 // 修改进度
 const DataModificationVersion = ref(0);
+// 禁手规则
+const BalanceBreaker = ref({ 'DoubleThree': false, 'DoubleFour': false, 'Overline': false });
+// 获胜玩家
+const Winner = ref(null);
+// 游戏结束
+const GameOver = ref(false);
 // const board = computed(() => {
 //   return Array(GoBoardVisibleSize.value).fill(0).map(() => Array(GoBoardVisibleSize.value).fill(0));
 // });
@@ -175,6 +153,10 @@ function svgPos(index) {
 }
 // 点击事件处理
 function handleClick(event) {
+  if (GameOver.value) {
+    console.log("Game is over, no more moves allowed.");
+    return; // 游戏已结束，不允许再下棋
+  }
   console.log("Current player:", CurrentPlayer.value);
   const rect = event.currentTarget.getBoundingClientRect();
   console.log("SVG rect:", rect);
@@ -192,6 +174,8 @@ function handleClick(event) {
     PieceCount.value++;
     CurrentPlayer.value = (CurrentPlayer.value + 1) % PlayerCount.value; // 切换棋手
     checkExpansion();
+    checkBalanceBreaker(dataY, dataX);
+    checkGameOver(dataY, dataX);
   }
   else {
     console.log(`Position (${dataX}, ${dataY}) already occupied by player ${boardData[dataY][dataX]}`);
@@ -211,6 +195,101 @@ function checkExpansion() {
     }
     GoBoardVisibleSize.value = newSize;
     console.log(`Board size expanded to ${newSize}x${newSize}`);
+  }
+}
+function checkBalanceBreaker(Y, X) {
+  BalanceBreaker.value.DoubleThree = false;
+  console.log(`Checking balance breaker rules for player ${boardData[Y][X]} at (${Y}, ${X})`);
+}
+
+function checkGameOver(Y, X) { 
+  if (GameOver.value) return;
+  console.log(`Checking game over conditions for player ${boardData[Y][X]} at (${Y}, ${X})`);
+  if ( boardData[Y][X] === boardData[Y][X - 1] && // 横向五连中
+       boardData[Y][X] === boardData[Y][X + 1] && 
+       boardData[Y][X] === boardData[Y][X - 2] && 
+    boardData[Y][X] === boardData[Y][X + 2] || 
+       boardData[Y][X] === boardData[Y - 1][X] && // 竖向五连中
+       boardData[Y][X] === boardData[Y + 1][X] && 
+       boardData[Y][X] === boardData[Y - 2][X] &&
+       boardData[Y][X] === boardData[Y + 2][X] || 
+       boardData[Y][X] === boardData[Y - 1][X - 1] && // 左斜五连中
+       boardData[Y][X] === boardData[Y + 1][X + 1] &&
+       boardData[Y][X] === boardData[Y - 2][X - 2] &&
+       boardData[Y][X] === boardData[Y + 2][X + 2] || 
+    boardData[Y][X] === boardData[Y - 1][X + 1] && // 右斜五连中
+    boardData[Y][X] === boardData[Y + 1][X - 1] &&
+       boardData[Y][X] === boardData[Y - 2][X + 2] &&
+    boardData[Y][X] === boardData[Y + 2][X - 2] || 
+    boardData[Y][X] === boardData[Y][X - 1] && // 横向五连右1
+      boardData[Y][X] === boardData[Y][X + 1] &&
+      boardData[Y][X] === boardData[Y][X - 2] &&
+    boardData[Y][X] === boardData[Y][X - 3] || 
+    boardData[Y][X] === boardData[Y][X - 1] && // 横向五连左1
+      boardData[Y][X] === boardData[Y][X + 1] &&
+      boardData[Y][X] === boardData[Y][X + 2] &&
+    boardData[Y][X] === boardData[Y][X + 3] || 
+    boardData[Y][X] === boardData[Y - 1][X] && // 竖向五连下1
+    boardData[Y][X] === boardData[Y + 1][X] &&
+    boardData[Y][X] === boardData[Y + 2][X] &&
+    boardData[Y][X] === boardData[Y + 3][X] ||
+    boardData[Y][X] === boardData[Y - 1][X] && // 竖向五连上1
+      boardData[Y][X] === boardData[Y + 1][X] &&
+  boardData[Y][X] === boardData[Y - 2][X] &&
+    boardData[Y][X] === boardData[Y - 3][X] || 
+    boardData[Y][X] === boardData[Y - 1][X - 1] && // 左斜五连右1
+    boardData[Y][X] === boardData[Y + 1][X + 1] &&
+    boardData[Y][X] === boardData[Y - 2][X - 2] &&
+    boardData[Y][X] === boardData[Y - 3][X - 3] ||
+    boardData[Y][X] === boardData[Y - 1][X - 1] && // 左斜五连左1
+    boardData[Y][X] === boardData[Y + 1][X + 1] &&
+    boardData[Y][X] === boardData[Y + 2][X + 2] &&
+    boardData[Y][X] === boardData[Y + 3][X + 3] ||
+    boardData[Y][X] === boardData[Y - 1][X + 1] && // 右斜五连右1
+    boardData[Y][X] === boardData[Y + 1][X - 1] &&
+    boardData[Y][X] === boardData[Y - 2][X + 2] &&
+    boardData[Y][X] === boardData[Y - 3][X + 3] ||
+    boardData[Y][X] === boardData[Y - 1][X + 1] && // 右斜五连左1
+    boardData[Y][X] === boardData[Y + 1][X - 1] &&
+    boardData[Y][X] === boardData[Y + 2][X - 2] &&
+    boardData[Y][X] === boardData[Y + 3][X - 3] ||
+    boardData[Y][X] === boardData[Y][X - 1] && // 横向五连右2
+    boardData[Y][X] === boardData[Y][X - 2] &&
+  boardData[Y][X] === boardData[Y][X - 3] &&
+    boardData[Y][X] === boardData[Y][X - 4] ||
+    boardData[Y][X] === boardData[Y][X + 1] && // 横向五连左2
+    boardData[Y][X] === boardData[Y][X + 2] &&
+    boardData[Y][X] === boardData[Y][X + 3] &&
+    boardData[Y][X] === boardData[Y][X + 4] ||
+    boardData[Y][X] === boardData[Y + 1][X] && // 竖向五连下2
+    boardData[Y][X] === boardData[Y + 2][X] &&
+    boardData[Y][X] === boardData[Y + 3][X] &&
+    boardData[Y][X] === boardData[Y + 4][X] ||
+    boardData[Y][X] === boardData[Y - 1][X] && // 竖向五连上2
+    boardData[Y][X] === boardData[Y - 2][X] &&
+    boardData[Y][X] === boardData[Y - 3][X] &&
+    boardData[Y][X] === boardData[Y - 4][X] ||
+    boardData[Y][X] === boardData[Y - 1][X - 1] && // 左斜五连右2
+    boardData[Y][X] === boardData[Y - 2][X - 2] &&
+    boardData[Y][X] === boardData[Y - 3][X - 3] &&
+    boardData[Y][X] === boardData[Y - 4][X - 4] ||
+    boardData[Y][X] === boardData[Y + 1][X + 1] && // 左斜五连左2
+    boardData[Y][X] === boardData[Y + 2][X + 2] &&
+    boardData[Y][X] === boardData[Y + 3][X + 3] &&
+    boardData[Y][X] === boardData[Y + 4][X + 4] ||
+    boardData[Y][X] === boardData[Y - 1][X + 1] && // 右斜五连右2
+    boardData[Y][X] === boardData[Y - 2][X + 2] &&
+    boardData[Y][X] === boardData[Y - 3][X + 3] &&
+    boardData[Y][X] === boardData[Y - 4][X + 4] ||
+    boardData[Y][X] === boardData[Y + 1][X - 1] && // 右斜五连左2
+    boardData[Y][X] === boardData[Y + 2][X - 2] &&
+    boardData[Y][X] === boardData[Y + 3][X - 3] &&
+    boardData[Y][X] === boardData[Y + 4][X - 4]
+) {
+        Winner.value = boardData[Y][X];
+        GameOver.value = true;
+        console.log(`Player ${Winner.value} wins!`);
+    return; // 检查到胜利条件，游戏结束
   }
 }
 
@@ -239,10 +318,10 @@ function checkExpansion() {
   fill: #5a3a1a; /* 星位填充色 */
 }
 
-/* 给SVG加个阴影，看起来更有立体感 */
+/* SVG阴影 */
 svg {
   box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.5);
-  border-radius: 4px; /* 轻微的圆角让阴影更好看 */
+  border-radius: 4px; /* 圆角 */
 }
 
 .pieces circle {
@@ -257,23 +336,6 @@ svg {
 .player-2 {
   fill: #eee;
   stroke: #bbb;
-}
-
-.game-info {
-  margin-top: 20px;
-  padding: 10px;
-  background-color: #f0f0f0;
-  border-radius: 8px;
-  box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
-}
-
-.black-piece-text {
-  font-weight: bold;
-  color: black;
-}
-.white-piece-text {
-  font-weight: bold;
-  color: #555;
 }
 
 </style>
