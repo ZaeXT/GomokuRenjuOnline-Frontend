@@ -8,7 +8,7 @@
       @click="handleClick"
       @mousemove="handleMovement"
       @mouseleave="ghostPiece.visible = false"
-      @mouseenter="ghostPiece.visible = true"
+      @mouseenter="ghostPiece.visible = true;handleMovement($event)"
     >
       <!-- 1. 棋盘背景 (一个带边框的矩形) -->
       <rect 
@@ -117,7 +117,7 @@ const Winner = ref(null);
 // 游戏结束
 const GameOver = ref(false);
 // 获胜条件
-const winPieces = ref(5);
+const winPieces = ref(7);
 // const board = computed(() => {
 //   return Array(GoBoardVisibleSize.value).fill(0).map(() => Array(GoBoardVisibleSize.value).fill(0));
 // });
@@ -172,7 +172,7 @@ const ghostPiece = ref(
   }
 )
 
-// 线条计算
+// 坐标计算
 function svgPos(index) {
   return PADDING + index * CELL_SIZE;
 }
@@ -182,12 +182,9 @@ function handleClick(event) {
     console.log("Game is over, no more moves allowed.");
     return; // 游戏已结束，不允许再下棋
   }
-  console.log("Current player:", CurrentPlayer.value);
   const rect = event.currentTarget.getBoundingClientRect();
-  console.log("SVG rect:", rect);
   const visibleX = Math.round((event.clientX - rect.left - PADDING) / CELL_SIZE);
   const visibleY = Math.round((event.clientY - rect.top - PADDING) / CELL_SIZE);
-  console.log(`Clicked at (${visibleX}, ${visibleY}) relative to SVG`);
   if (visibleX < 0 || visibleX >= GoBoardVisibleSize.value || visibleY < 0 || visibleY >= GoBoardVisibleSize.value) {
     return; // 点击在棋盘外
   }
@@ -204,10 +201,8 @@ function handleClick(event) {
     checkGameOver(dataY, dataX);
   }
   else {
-    console.log(`Position (${dataX}, ${dataY}) already occupied by player ${boardData[dataY][dataX]}`);
     return; // 位置已被占用
   }
-  console.log(`Clicked at (${visibleX}, ${visibleY}) - Data position: (${dataX}, ${dataY})`, "Data", boardData[dataY][dataX]);
 
 }
 function handleMovement(event) {
@@ -246,7 +241,6 @@ function checkBalanceBreaker(Y, X) {
 
 function checkGameOver(Y, X) { 
   if (GameOver.value) return;
-  console.log(`Checking game over conditions for player ${boardData[Y][X]} at (${Y}, ${X})`);
 
   const checkDirections = [
     { dx: 1, dy: 0 }, // 横向
@@ -258,17 +252,18 @@ function checkGameOver(Y, X) {
   for (const Direction of checkDirections) {
     let cnt = 1;
     for (let step = 1; step < winPieces.value; step++) {
-      if (boardData[Y + Direction.dy * step] && 
-          boardData[Y + Direction.dy * step][X + Direction.dx * step] === boardData[Y][X]) {
+      if (boardData[Y + Direction.dy * step] &&
+        boardData[Y + Direction.dy * step][X + Direction.dx * step] === boardData[Y][X]) {
         cnt++;
       } else {
         break;
       }
-
+    }
+    for (let step = 1; step < winPieces.value; step++) {
       if (boardData[Y - Direction.dy * step] && 
           boardData[Y - Direction.dy * step][X - Direction.dx * step] === boardData[Y][X]) {
         cnt++;
-      } else {
+        } else {
         break;
       }
     }
