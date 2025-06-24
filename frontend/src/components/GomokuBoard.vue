@@ -67,7 +67,7 @@
       </g>
 
       <!-- 6. 绘制幽灵棋子 -->
-       <g class="ghost-piece" v-if="ghostPiece.visible">
+       <g class="ghost-piece" v-if="ghostPiece.visible && !GameOver">
         <circle 
           :cx="ghostPiece.cx" 
           :cy="ghostPiece.cy" 
@@ -77,6 +77,13 @@
       </g>
 
     </svg>
+    <div v-if="GameOver" class="victory-overlay">
+      <div class="victory-content">
+        <p>GameOver</p>
+        <h2>Player {{ Winner }} Wins!</h2>
+        <button @click="resetGame">Restart Game</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -117,7 +124,7 @@ const Winner = ref(null);
 // 游戏结束
 const GameOver = ref(false);
 // 获胜条件
-const winPieces = ref(7);
+const winPieces = ref(5);
 // const board = computed(() => {
 //   return Array(GoBoardVisibleSize.value).fill(0).map(() => Array(GoBoardVisibleSize.value).fill(0));
 // });
@@ -274,7 +281,22 @@ function checkGameOver(Y, X) {
       return;
     }
   }
-
+}
+function resetGame() {
+  console.log("Resetting game...");
+  for (let y = 0; y < DATA_GRID_SIZE; y++) {
+    for (let x = 0; x < DATA_GRID_SIZE; x++) {
+      if (boardData[y][x] !== 0) {
+        boardData[y][x] = 0;
+      }
+    }
+  }
+  GameOver.value = false;
+  Winner.value = null;
+  GoBoardVisibleSize.value = 15;
+  PieceCount.value = 0;
+  CurrentPlayer.value = 0;
+  DataModificationVersion.value++;
 }
 
 </script>
@@ -325,6 +347,67 @@ svg {
 .player-1 {
   fill: #eee;
   stroke: #bbb;
+}
+
+/* ... 胜利样式 ... */
+
+.victory-overlay {
+  position: absolute; /* 覆盖在棋盘上 */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100; /* 确保在最上层 */
+}
+
+.victory-content {
+  background-color: white;
+  padding: 20px 40px;
+  border-radius: 10px;
+  text-align: center;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  transform: scale(0.9);
+  animation: pop-in 0.3s forwards;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.victory-content h2 {
+  margin-top: 0;
+  color: #333;
+}
+
+.victory-content p {
+  font-size: 1.2em;
+  margin: 15px 0;
+}
+
+.victory-content button {
+  padding: 10px 20px;
+  font-size: 1em;
+  border: none;
+  border-radius: 5px;
+  background-color: #42b983; /* Vue 绿色 */
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.victory-content button:hover {
+  background-color: #33a06f;
 }
 
 </style>
