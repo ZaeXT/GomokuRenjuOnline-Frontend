@@ -190,8 +190,13 @@ function handleClick(event) {
     return; // 游戏已结束，不允许再下棋
   }
   const rect = event.currentTarget.getBoundingClientRect();
-  const visibleX = Math.round((event.clientX - rect.left - PADDING) / CELL_SIZE);
-  const visibleY = Math.round((event.clientY - rect.top - PADDING) / CELL_SIZE);
+  // 处理缩放问题
+  const scaleX = boardSize.value / rect.width;
+  const scaleY = boardSize.value / rect.height;
+  const svgX = (event.clientX - rect.left) * scaleX;
+  const svgY = (event.clientY - rect.top) * scaleY;
+  const visibleX = Math.round((svgX - PADDING) / CELL_SIZE);
+  const visibleY = Math.round((svgY - PADDING) / CELL_SIZE);
   if (visibleX < 0 || visibleX >= GoBoardVisibleSize.value || visibleY < 0 || visibleY >= GoBoardVisibleSize.value) {
     return; // 点击在棋盘外
   }
@@ -214,8 +219,13 @@ function handleClick(event) {
 }
 function handleMovement(event) {
   const rect = event.currentTarget.getBoundingClientRect();
-  const visibleX = Math.round((event.clientX - rect.left - PADDING) / CELL_SIZE);
-  const visibleY = Math.round((event.clientY - rect.top - PADDING) / CELL_SIZE);
+  // 处理缩放问题
+  const scaleX = boardSize.value / rect.width;
+  const scaleY = boardSize.value / rect.height;
+  const svgX = (event.clientX - rect.left) * scaleX;
+  const svgY = (event.clientY - rect.top) * scaleY;
+  const visibleX = Math.round((svgX - PADDING) / CELL_SIZE);
+  const visibleY = Math.round((svgY - PADDING) / CELL_SIZE);
   if (visibleX < 0 || visibleX >= GoBoardVisibleSize.value || visibleY < 0 || visibleY >= GoBoardVisibleSize.value) {
     ghostPiece.value.visible = false; // 鼠标移出棋盘区域
     return;
