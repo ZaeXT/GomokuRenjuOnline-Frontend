@@ -1,10 +1,9 @@
 <template>
   <div class="board-container">
     <svg 
-      :width="boardSize" 
-      :height="boardSize" 
       :viewBox="`0 0 ${boardSize} ${boardSize}`"
       xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="xMidYMid meet"
       @click="handleClick"
       @mousemove="handleMovement"
       @mouseleave="ghostPiece.visible = false"
@@ -317,6 +316,10 @@ function resetGame() {
   justify-content: center;
   align-items: center;
   margin-top: 50px;
+  width: 90vw; /* 占据视口宽度的 90% */
+  max-width: 800px; /* 但最大不超过 800px */
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .board-bg {
@@ -336,6 +339,12 @@ function resetGame() {
 
 /* SVG阴影 */
 svg {
+  /* 确保: SVG 宽度充满其容器 */
+  width: 100%; 
+  
+  /* 保持: 强制 SVG 的盒子模型为1:1 */
+  aspect-ratio: 1 / 1; 
+
   box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.5);
   border-radius: 4px; /* 圆角 */
 }
