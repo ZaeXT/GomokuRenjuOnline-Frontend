@@ -1,164 +1,152 @@
 <template>
-  <div class="board-container">
-    <svg 
-      :viewBox="`0 0 ${boardSize} ${boardSize}`"
-      xmlns="http://www.w3.org/2000/svg"
-      preserveAspectRatio="xMidYMid meet"
-      @click="handleClick"
-      @mousemove="handleMovement"
-      @mouseleave="ghostPiece.visible = false"
-      @mouseenter="ghostPiece.visible = true;handleMovement($event)"
-    >
-      <!-- 1. 棋盘背景 (一个带边框的矩形) -->
-      <rect 
-        x="0" 
-        y="0" 
-        :width="boardSize" 
-        :height="boardSize" 
-        class="board-bg"
-      />
-
-      <!-- 2. 绘制所有横线 -->
-      <g class="board-lines">
-        <line 
-          v-for="i in GoBoardVisibleSize" 
-          :key="'h' + i"
-          :x1="svgPos(0)" 
-          :y1="svgPos(i - 1)" 
-          :x2="svgPos(GoBoardVisibleSize - 1)" 
-          :y2="svgPos(i - 1)"
+  <div class="main-container">
+    <div class="game-status">
+      <p v-if="!isConnected">Connecting to server...</p>
+      <p v-else-if="serverState.isGameOver">
+        Game Over! {{serverState.winner ? `Player ${serverState.winner} Wins!` : 'Its a Draw!'}}
+      </p>
+      <p v-else-if="isMyTurn">
+        <span class="your-turn">●</span> Your Turn
+      </p>
+      <p v-else>
+        <span class="opponent-turn">○</span> Waiting for Opponent...
+      </p>
+      <p class="player-info">(You are Player {{ serverState.yourPlayerId }})</p>
+    </div>  
+      <div class="board-container">
+      <svg 
+        :viewBox="`0 0 ${boardSize} ${boardSize}`"
+        xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="xMidYMid meet"
+        @click="handleClick"
+        @mousemove="handleMovement"
+        @mouseleave="ghostPiece.visible = false"
+        @mouseenter="ghostPiece.visible = true;handleMovement($event)"
+        :class="{ 'my-turn-cursor': isMyTurn && !serverState.isGameOver }"
+      >
+        <!-- 1. 棋盘背景 (一个带边框的矩形) -->
+        <rect 
+          x="0" 
+          y="0" 
+          :width="boardSize" 
+          :height="boardSize" 
+          class="board-bg"
         />
-      </g>
 
-      <!-- 3. 绘制所有竖线 -->
-      <g class="board-lines">
-        <line 
-          v-for="i in GoBoardVisibleSize" 
-          :key="'v' + i"
-          :x1="svgPos(i - 1)" 
-          :y1="svgPos(0)" 
-          :x2="svgPos(i - 1)" 
-          :y2="svgPos(GoBoardVisibleSize - 1)"
-        />
-      </g>
-      
-      <!-- 4. 绘制星位 -->
-      <g class="star-points">
-        <circle 
-          v-for="(point, index) in starPoints"
-          :key="'star' + index"
-          :cx="point.x"
-          :cy="point.y"
-          r="5" 
-        />
-      </g>
+        <!-- 2. 绘制所有横线 -->
+        <g class="board-lines">
+          <line 
+            v-for="i in GoBoardVisibleSize" 
+            :key="'h' + i"
+            :x1="svgPos(0)" 
+            :y1="svgPos(i - 1)" 
+            :x2="svgPos(GoBoardVisibleSize - 1)" 
+            :y2="svgPos(i - 1)"
+          />
+        </g>
 
-      <!-- 5. 绘制棋子 -->
-      <g class="pieces">
-        <circle 
-          v-for="piece in visiblePieces" 
-          :key="`${piece.dataX}-${piece.dataY}`"
-          :cx="piece.cx" 
-          :cy="piece.cy" 
-          r="18" 
-          :class="`player-${piece.player-1}`"
-        />
-      </g>
+        <!-- 3. 绘制所有竖线 -->
+        <g class="board-lines">
+          <line 
+            v-for="i in GoBoardVisibleSize" 
+            :key="'v' + i"
+            :x1="svgPos(i - 1)" 
+            :y1="svgPos(0)" 
+            :x2="svgPos(i - 1)" 
+            :y2="svgPos(GoBoardVisibleSize - 1)"
+          />
+        </g>
+        
+        <!-- 4. 绘制星位 -->
+        <g class="star-points">
+          <circle 
+            v-for="(point, index) in starPoints"
+            :key="'star' + index"
+            :cx="point.x"
+            :cy="point.y"
+            r="5" 
+          />
+        </g>
 
-      <!-- 6. 绘制幽灵棋子 -->
-       <g class="ghost-piece" v-if="ghostPiece.visible && !GameOver">
-        <circle 
-          :cx="ghostPiece.cx" 
-          :cy="ghostPiece.cy" 
-          r="18" 
-          :class="`player-${CurrentPlayer}`"
-        />
-      </g>
+        <!-- 5. 绘制棋子 -->
+        <g class="pieces">
+          <circle 
+            v-for="piece in visiblePieces" 
+            :key="`${piece.x}-${piece.y}`"
+            :cx="piece.cx" 
+            :cy="piece.cy" 
+            r="18" 
+            :class="`player-${piece.player-1}`"
+          />
+        </g>
 
-    </svg>
-    <div v-if="GameOver" class="victory-overlay">
-      <div class="victory-content">
-        <p>GameOver</p>
-        <h2>Player {{ Winner }} Wins!</h2>
-        <button @click="resetGame">Restart Game</button>
+        <!-- 6. 绘制幽灵棋子 -->
+        <g class="ghost-piece" v-if="ghostPiece.visible">
+          <circle 
+            :cx="ghostPiece.cx" 
+            :cy="ghostPiece.cy" 
+            r="18" 
+            :class="`player-${serverState.currentPlayer - 1}`"
+          />
+        </g>
+
+      </svg>
+      <div v-if="serverState.isGameOver" class="victory-overlay">
+        <div class="victory-content">
+          <p>GameOver</p>
+          <h2>Player {{ serverState.winner ? `Player ${serverState.winner} Wins!` : 'Draw!' }}</h2>
+          <button @click="resetGame">Restart Game</button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted} from 'vue';
+
+const socket = ref(null);
+const isConnected = ref(false);
+
+const serverState = ref({
+  visibleSize: 15,
+  pieces: [],
+  currentPlayer: 1,
+  isGameOver: false,
+  winner: null,
+  yourPlayerId: null,
+});
 
 
-// 棋局上限
-const DATA_GRID_SIZE = 4096;
-// 格子大小
+
 const CELL_SIZE = 40;
-// 棋盘边距
+const DATA_CENTER_POS = 2048;
 const PADDING = 20;
-// 棋盘总大小
+
+const GoBoardVisibleSize = computed(() =>
+serverState.value.visibleSize || 15);
 const boardSize = computed(() => {
   return (GoBoardVisibleSize.value - 1) * CELL_SIZE + PADDING * 2;
 });
-// 棋盘数据
-const boardData = createDataGrid(DATA_GRID_SIZE);
-function createDataGrid(size) {
-  console.log(`Initializing a huge ${size}x${size} data grid...`);
-  return Array(size).fill(0).map(() => Array(size).fill(0));
-}
-// 棋盘大小
-const GoBoardVisibleSize = ref(15);
-// 棋子个数
-const PieceCount = ref(0);
-// 棋手个数
-const PlayerCount = ref(2);
-// 当前棋手
-const CurrentPlayer = ref(0);
-// 修改进度
-const DataModificationVersion = ref(0);
-// 禁手规则
-const BalanceBreaker = ref({ 'DoubleThree': false, 'DoubleFour': false, 'Overline': false });
-// 获胜玩家
-const Winner = ref(null);
-// 游戏结束
-const GameOver = ref(false);
-// 获胜条件
-const winPieces = ref(5);
-// const board = computed(() => {
-//   return Array(GoBoardVisibleSize.value).fill(0).map(() => Array(GoBoardVisibleSize.value).fill(0));
-// });
-// 棋子数据位置
-const visibleBoardDataPos = computed(() => {
-  const dataCenterPos = Math.floor(DATA_GRID_SIZE / 2);
-  const halfVisibleSize = Math.floor(GoBoardVisibleSize.value / 2);
-  const start = dataCenterPos - halfVisibleSize;
-  const end = dataCenterPos + halfVisibleSize;
-  return { start, end };
-});
+const isMyTurn = computed(() => isConnected.value && serverState.value.currentPlayer === serverState.value.yourPlayerId);
 // 提取棋子数据
 const visiblePieces = computed(() => {
-  DataModificationVersion.value;
-  const pieces = [];
-  const { start, end } = visibleBoardDataPos.value;
-  for (let y = start; y <= end; y++) {
-    for (let x = start; x <= end; x++) {
-      if (boardData[y][x] !== 0) {
-        pieces.push({
-          dataX: x,
-          dataY: y,
-          cx: svgPos(x - start),
-          cy: svgPos(y - start),
-          player: boardData[y][x]
-        });
-      }
-    }
-  }
-  return pieces;
-})
+  return serverState.value.pieces.map(p => ({
+    ...p,
+    cx: svgPos(toSvgCoord(p.x)),
+    cy: svgPos(toSvgCoord(p.y)),
+  }));
+});
+
+const occupiedPositionsSet = computed(() => {
+  return new Set(
+    serverState.value.pieces.map(p => `${p.x},${p.y}`)
+  );
+});
 
 // 棋盘星位
 const starPoints = computed(() => {
-  const center = Math.floor(GoBoardVisibleSize.value / 2); // 7
+  const center = Math.floor(GoBoardVisibleSize.value / 2);
   const points = [
     { x: center, y: center }, // 天元
     { x: center - 4, y: center - 4 }, // 左上角
@@ -177,17 +165,57 @@ const ghostPiece = ref(
     visible: false
   }
 )
+onMounted(() => {
+  connectWebSocket();
+});
+
+function connectWebSocket() {
+  socket.value = new WebSocket("ws://192.168.1.8:8080/ws");
+  socket.value.onopen = () => {
+    console.log("WebSocket connection established.");
+    isConnected.value = true;
+    sendMessage("JOIN_ROOM",{roomID:"room1"});
+  };
+  socket.value.onmessage = (event) => {
+    const message = JSON.parse(event.data);
+    console.log("Received:", message);
+    if (message.type === "GAME_STATE_UPDATE") {
+      serverState.value = message.payload;
+    } else if (message.type === "ERROR") {
+      alert(`Error: ${message.payload.message}`);
+    }
+  };
+
+  socket.value.onclose = () => {
+    console.log("WebSocket connection closed.");
+    isConnected.value = false;
+  };
+  socket.value.onerror = (error) => {
+    console.error("WebSocket error:", error);
+    isConnected.value = false;
+  };
+}
+
+function sendMessage(type, payload) {
+  if (socket.value && socket.value.readyState === WebSocket.OPEN) {
+    socket.value.send(JSON.stringify({ type, payload }));
+  } else {
+    console.error("WebSocket is not open. Cannot send message.");
+  }
+}
 
 // 坐标计算
 function svgPos(index) {
   return PADDING + index * CELL_SIZE;
 }
+function toSvgCoord(absoluteCoord){
+  const halfVisible = Math.floor(GoBoardVisibleSize.value / 2);
+  const visibleStart = DATA_CENTER_POS - halfVisible;
+  return absoluteCoord - visibleStart;
+}
 // 点击事件处理
 function handleClick(event) {
-  if (GameOver.value) {
-    console.log("Game is over, no more moves allowed.");
-    return; // 游戏已结束，不允许再下棋
-  }
+  if (!isMyTurn.value || serverState.value.isGameOver) return;
   const rect = event.currentTarget.getBoundingClientRect();
   // 处理缩放问题
   const scaleX = boardSize.value / rect.width;
@@ -199,24 +227,24 @@ function handleClick(event) {
   if (visibleX < 0 || visibleX >= GoBoardVisibleSize.value || visibleY < 0 || visibleY >= GoBoardVisibleSize.value) {
     return; // 点击在棋盘外
   }
-  const dataX = visibleX + visibleBoardDataPos.value.start;
-  const dataY = visibleY + visibleBoardDataPos.value.start;
-  if (boardData[dataY][dataX] === 0) {
-    ghostPiece.value.visible = false;
-    boardData[dataY][dataX] = CurrentPlayer.value + 1;
-    DataModificationVersion.value++;
-    PieceCount.value++;
-    CurrentPlayer.value = (CurrentPlayer.value + 1) % PlayerCount.value; // 切换棋手
-    checkExpansion();
-    checkBalanceBreaker(dataY, dataX);
-    checkGameOver(dataY, dataX);
+  const halfVisible = Math.floor(GoBoardVisibleSize.value / 2);
+  const dataX = (DATA_CENTER_POS - halfVisible) + visibleX;
+  const dataY = (DATA_CENTER_POS - halfVisible) + visibleY;
+  if (occupiedPositionsSet.value.has(`${dataX},${dataY}`)) {
+    return; // 该位置已被占用
   }
-  else {
-    return; // 位置已被占用
-  }
-
+  console.log(`Sending MAKE_MOVE for absolute coords:(${dataX}, ${dataY})`);
+  sendMessage("MAKE_MOVE", { x: dataX, y: dataY });
+  ghostPiece.value.visible = false; // 点击后隐藏幽灵棋子
 }
+
+
+
 function handleMovement(event) {
+  if (!isMyTurn.value || serverState.value.isGameOver) {
+    ghostPiece.value.visible = false; // 非我方回合或游戏结束时隐藏幽灵棋子
+    return;
+  }
   const rect = event.currentTarget.getBoundingClientRect();
   // 处理缩放问题
   const scaleX = boardSize.value / rect.width;
@@ -229,7 +257,11 @@ function handleMovement(event) {
     ghostPiece.value.visible = false; // 鼠标移出棋盘区域
     return;
   }
-  if (boardData[visibleY + visibleBoardDataPos.value.start][visibleX + visibleBoardDataPos.value.start] !== 0) {
+  const halfVisible = Math.floor(GoBoardVisibleSize.value / 2);
+  const dataX = (DATA_CENTER_POS - halfVisible) + visibleX;
+  const dataY = (DATA_CENTER_POS - halfVisible) + visibleY;
+  const positionKey = `${dataX},${dataY}`;
+  if (occupiedPositionsSet.value.has(positionKey)) {
     ghostPiece.value.visible = false; // 鼠标移到已占用位置
     return;
   }
@@ -237,85 +269,52 @@ function handleMovement(event) {
   ghostPiece.value.cy = svgPos(visibleY);
   ghostPiece.value.visible = true;
 }
-function checkExpansion() {
-  const currentAreaSize = GoBoardVisibleSize.value * GoBoardVisibleSize.value;
-  const threshold = currentAreaSize * 0.8;
-  if (PieceCount.value >= threshold) {
-    console.log("Expansion triggered!");
-    let newSize = Math.floor(GoBoardVisibleSize.value * 1.5);
-    if (newSize % 2 === 0) {
-      newSize++; // 确保新大小为奇数
-    }
-    GoBoardVisibleSize.value = newSize;
-    console.log(`Board size expanded to ${newSize}x${newSize}`);
-  }
-}
-function checkBalanceBreaker(Y, X) {
-  BalanceBreaker.value.DoubleThree = false;
-  console.log(`Checking balance breaker rules for player ${boardData[Y][X]} at (${Y}, ${X})`);
-}
 
-function checkGameOver(Y, X) { 
-  if (GameOver.value) return;
 
-  const checkDirections = [
-    { dx: 1, dy: 0 }, // 横向
-    { dx: 0, dy: 1 }, // 竖向
-    { dx: 1, dy: 1 }, // 左斜
-    { dx: -1, dy: 1 } // 右斜
-  ];
 
-  for (const Direction of checkDirections) {
-    let cnt = 1;
-    for (let step = 1; step < winPieces.value; step++) {
-      if (boardData[Y + Direction.dy * step] &&
-        boardData[Y + Direction.dy * step][X + Direction.dx * step] === boardData[Y][X]) {
-        cnt++;
-      } else {
-        break;
-      }
-    }
-    for (let step = 1; step < winPieces.value; step++) {
-      if (boardData[Y - Direction.dy * step] && 
-          boardData[Y - Direction.dy * step][X - Direction.dx * step] === boardData[Y][X]) {
-        cnt++;
-        } else {
-        break;
-      }
-    }
-    if (cnt >= winPieces.value) {
-      Winner.value = boardData[Y][X];
-      GameOver.value = true;
-      console.log(`Player ${Winner.value} wins!`);
-      return;
-    }
-  }
-}
 function resetGame() {
-  console.log("Resetting game...");
-  for (let y = 0; y < DATA_GRID_SIZE; y++) {
-    for (let x = 0; x < DATA_GRID_SIZE; x++) {
-      if (boardData[y][x] !== 0) {
-        boardData[y][x] = 0;
-      }
-    }
-  }
-  GameOver.value = false;
-  Winner.value = null;
-  GoBoardVisibleSize.value = 15;
-  PieceCount.value = 0;
-  CurrentPlayer.value = 0;
-  DataModificationVersion.value++;
+  sendMessage("RESTART_GAME", {});
 }
 
 </script>
 
 <style scoped>
+.main-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  font-family: sans-serif;
+}
+
+.game-status {
+  text-align: center;
+  font-size: 1.5em;
+  font-weight: bold;
+  color: #333;
+  padding: 10px 20px;
+  background-color: #f0f0f0;
+  border-radius: 8px;
+  min-width: 300px;
+}
+.game-status p {
+  margin: 0;
+  line-height: 1.2;
+}
+.game-status .player-info {
+  font-size: 0.6em;
+  font-weight: normal;
+  color: #666;
+  margin-top: 4px;
+}
+.your-turn { color: #42b983; }
+.opponent-turn { color: #f0ad4e; }
+
 .board-container {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-top: 50px;
   width: 90vw; /* 占据视口宽度的 90% */
   max-width: 800px; /* 但最大不超过 800px */
   margin-left: auto;
@@ -347,6 +346,10 @@ svg {
 
   box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.5);
   border-radius: 4px; /* 圆角 */
+}
+
+svg.my-turn-cursor {
+  cursor: pointer;
 }
 
 .pieces circle {
