@@ -1,101 +1,120 @@
 <template>
-  <div class="main-container">
-    <div class="game-status">
-      <p v-if="!isConnected">Connecting to server...</p>
-      <p v-else-if="serverState.isGameOver">
-        Game Over! {{serverState.winner ? `Player ${serverState.winner} Wins!` : 'Its a Draw!'}}
-      </p>
-      <p v-else-if="isMyTurn">
-        <span class="your-turn">●</span> Your Turn
-      </p>
-      <p v-else>
-        <span class="opponent-turn">○</span> Waiting for Opponent...
-      </p>
-      <p class="player-info">(You are Player {{ serverState.yourPlayerId }})</p>
-    </div>  
-      <div class="board-container">
-      <svg 
-        :viewBox="`0 0 ${boardSize} ${boardSize}`"
-        xmlns="http://www.w3.org/2000/svg"
-        preserveAspectRatio="xMidYMid meet"
-        @click="handleClick"
-        @mousemove="handleMovement"
-        @mouseleave="ghostPiece.visible = false"
-        @mouseenter="ghostPiece.visible = true;handleMovement($event)"
-        :class="{ 'my-turn-cursor': isMyTurn && !serverState.isGameOver }"
-      >
-        <!-- 1. 棋盘背景 (一个带边框的矩形) -->
-        <rect 
-          x="0" 
-          y="0" 
-          :width="boardSize" 
-          :height="boardSize" 
-          class="board-bg"
-        />
-
-        <!-- 2. 绘制所有横线 -->
-        <g class="board-lines">
-          <line 
-            v-for="i in GoBoardVisibleSize" 
-            :key="'h' + i"
-            :x1="svgPos(0)" 
-            :y1="svgPos(i - 1)" 
-            :x2="svgPos(GoBoardVisibleSize - 1)" 
-            :y2="svgPos(i - 1)"
+   <!-- Lobby View -->
+  <div v-if="currentView === 'lobby'" class="lobby-container">
+    <h1>Gomoku Game Lobby</h1>
+    <div class="room-creator">
+      <input v-model="newRoomName" placeholder="Enter new room name" @keyup.enter="createRoom" />
+      <button @click="createRoom" :disabled="!newRoomName">Create Room</button>
+    </div>
+    <h2>Available Rooms</h2>
+    <div v-if="rooms.length === 0" class="no-rooms">No available rooms. Create one!</div>
+    <ul class="room-list">
+      <li v-for="room in rooms" :key="room.id">
+        <span>{{ room.name }} ({{ room.playerCount }}/2)</span>
+        <button @click="joinRoom(room.id)">Join</button>
+      </li>
+    </ul>
+  </div>
+  <!-- Game View -->
+  <div v-else-if="currentView === 'game'">
+    <div class="main-container">
+      <div class="game-status">
+        <p v-if="!isConnected">Connecting to server...</p>
+        <p v-else-if="serverState.isGameOver">
+          Game Over! {{serverState.winner ? `Player ${serverState.winner} Wins!` : 'Its a Draw!'}}
+        </p>
+        <p v-else-if="isMyTurn">
+          <span class="your-turn">●</span> Your Turn
+        </p>
+        <p v-else>
+          <span class="opponent-turn">○</span> Waiting for Opponent...
+        </p>
+        <p class="player-info">(You are Player {{ serverState.yourPlayerId }} at Room {{ serverState.roomName }})</p>
+      </div>  
+        <div class="board-container">
+        <svg 
+          :viewBox="`0 0 ${boardSize} ${boardSize}`"
+          xmlns="http://www.w3.org/2000/svg"
+          preserveAspectRatio="xMidYMid meet"
+          @click="handleClick"
+          @mousemove="handleMovement"
+          @mouseleave="ghostPiece.visible = false"
+          @mouseenter="ghostPiece.visible = true;handleMovement($event)"
+          :class="{ 'my-turn-cursor': isMyTurn && !serverState.isGameOver }"
+        >
+          <!-- 1. 棋盘背景 (一个带边框的矩形) -->
+          <rect 
+            x="0" 
+            y="0" 
+            :width="boardSize" 
+            :height="boardSize" 
+            class="board-bg"
           />
-        </g>
 
-        <!-- 3. 绘制所有竖线 -->
-        <g class="board-lines">
-          <line 
-            v-for="i in GoBoardVisibleSize" 
-            :key="'v' + i"
-            :x1="svgPos(i - 1)" 
-            :y1="svgPos(0)" 
-            :x2="svgPos(i - 1)" 
-            :y2="svgPos(GoBoardVisibleSize - 1)"
-          />
-        </g>
-        
-        <!-- 4. 绘制星位 -->
-        <g class="star-points">
-          <circle 
-            v-for="(point, index) in starPoints"
-            :key="'star' + index"
-            :cx="point.x"
-            :cy="point.y"
-            r="5" 
-          />
-        </g>
+          <!-- 2. 绘制所有横线 -->
+          <g class="board-lines">
+            <line 
+              v-for="i in GoBoardVisibleSize" 
+              :key="'h' + i"
+              :x1="svgPos(0)" 
+              :y1="svgPos(i - 1)" 
+              :x2="svgPos(GoBoardVisibleSize - 1)" 
+              :y2="svgPos(i - 1)"
+            />
+          </g>
 
-        <!-- 5. 绘制棋子 -->
-        <g class="pieces">
-          <circle 
-            v-for="piece in visiblePieces" 
-            :key="`${piece.x}-${piece.y}`"
-            :cx="piece.cx" 
-            :cy="piece.cy" 
-            r="18" 
-            :class="`player-${piece.player-1}`"
-          />
-        </g>
+          <!-- 3. 绘制所有竖线 -->
+          <g class="board-lines">
+            <line 
+              v-for="i in GoBoardVisibleSize" 
+              :key="'v' + i"
+              :x1="svgPos(i - 1)" 
+              :y1="svgPos(0)" 
+              :x2="svgPos(i - 1)" 
+              :y2="svgPos(GoBoardVisibleSize - 1)"
+            />
+          </g>
+          
+          <!-- 4. 绘制星位 -->
+          <g class="star-points">
+            <circle 
+              v-for="(point, index) in starPoints"
+              :key="'star' + index"
+              :cx="point.x"
+              :cy="point.y"
+              r="5" 
+            />
+          </g>
 
-        <!-- 6. 绘制幽灵棋子 -->
-        <g class="ghost-piece" v-if="ghostPiece.visible">
-          <circle 
-            :cx="ghostPiece.cx" 
-            :cy="ghostPiece.cy" 
-            r="18" 
-            :class="`player-${serverState.currentPlayer - 1}`"
-          />
-        </g>
+          <!-- 5. 绘制棋子 -->
+          <g class="pieces">
+            <circle 
+              v-for="piece in visiblePieces" 
+              :key="`${piece.x}-${piece.y}`"
+              :cx="piece.cx" 
+              :cy="piece.cy" 
+              r="18" 
+              :class="`player-${piece.player-1}`"
+            />
+          </g>
 
-      </svg>
-      <div v-if="serverState.isGameOver" class="victory-overlay">
-        <div class="victory-content">
-          <p>GameOver</p>
-          <h2>Player {{ serverState.winner ? `Player ${serverState.winner} Wins!` : 'Draw!' }}</h2>
-          <button @click="resetGame">Restart Game</button>
+          <!-- 6. 绘制幽灵棋子 -->
+          <g class="ghost-piece" v-if="ghostPiece.visible">
+            <circle 
+              :cx="ghostPiece.cx" 
+              :cy="ghostPiece.cy" 
+              r="18" 
+              :class="`player-${serverState.currentPlayer - 1}`"
+            />
+          </g>
+
+        </svg>
+        <div v-if="serverState.isGameOver" class="victory-overlay">
+          <div class="victory-content">
+            <p>GameOver</p>
+            <h2>Player {{ serverState.winner ? `Player ${serverState.winner} Wins!` : 'Draw!' }}</h2>
+            <button @click="resetGame">Restart Game</button>
+          </div>
         </div>
       </div>
     </div>
@@ -105,10 +124,15 @@
 <script setup>
 import { ref, computed, onMounted} from 'vue';
 
+const currentView = ref('lobby'); // 'lobby' or 'game'
+const rooms = ref([]);
+const newRoomName = ref('');
+
 const socket = ref(null);
 const isConnected = ref(false);
 
 const serverState = ref({
+  roomName: '',
   visibleSize: 15,
   pieces: [],
   currentPlayer: 1,
@@ -170,19 +194,27 @@ onMounted(() => {
 });
 
 function connectWebSocket() {
-  socket.value = new WebSocket("ws://192.168.1.8:8080/ws");
+  socket.value = new WebSocket("ws://localhost:8089/ws");
   socket.value.onopen = () => {
-    console.log("WebSocket connection established.");
     isConnected.value = true;
-    sendMessage("JOIN_ROOM",{roomID:"room1"});
+    console.log("WebSocket connected. In lobby.");
   };
   socket.value.onmessage = (event) => {
     const message = JSON.parse(event.data);
     console.log("Received:", message);
-    if (message.type === "GAME_STATE_UPDATE") {
-      serverState.value = message.payload;
-    } else if (message.type === "ERROR") {
-      alert(`Error: ${message.payload.message}`);
+    switch (message.type) {
+      case "ROOM_LIST_UPDATE":
+        rooms.value = message.payload.rooms;
+        break;
+      case "GAME_STATE_UPDATE":
+        if (currentView.value !== 'game') {
+          currentView.value = 'game';
+        }
+        serverState.value = message.payload;
+        break;
+      case "ERROR":
+        alert(`Error: ${message.payload.message}`);
+        break;
     }
   };
 
@@ -199,9 +231,19 @@ function connectWebSocket() {
 function sendMessage(type, payload) {
   if (socket.value && socket.value.readyState === WebSocket.OPEN) {
     socket.value.send(JSON.stringify({ type, payload }));
-  } else {
-    console.error("WebSocket is not open. Cannot send message.");
   }
+}
+
+// Lobby
+function createRoom() {
+  if (newRoomName.value.trim()) {
+    sendMessage("CREATE_ROOM", { name: newRoomName.value.trim() });
+    newRoomName.value = '';
+  }
+}
+
+function joinRoom(roomId) {
+  sendMessage("JOIN_ROOM", { id: roomId });
 }
 
 // 坐标计算
@@ -273,12 +315,70 @@ function handleMovement(event) {
 
 
 function resetGame() {
-  sendMessage("RESTART_GAME", {});
+  window.location.reload(); // 重新加载页面以重置游戏
 }
 
 </script>
 
 <style scoped>
+/* --- 新增 Lobby 样式 --- */
+.lobby-container {
+  max-width: 600px;
+  margin: 40px auto;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+.room-creator {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.room-creator input {
+  flex-grow: 1;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.room-creator button, .room-list button {
+  padding: 10px 15px;
+  border: none;
+  background-color: #42b983;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.room-creator button:disabled {
+    background-color: #aaa;
+    cursor: not-allowed;
+}
+.room-creator button:hover:not(:disabled) {
+  background-color: #33a06f;
+}
+
+.room-list {
+  list-style-type: none;
+  padding: 0;
+}
+
+.room-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid #eee;
+}
+.room-list li:last-child {
+  border-bottom: none;
+}
+
+
 .main-container {
   display: flex;
   flex-direction: column;
