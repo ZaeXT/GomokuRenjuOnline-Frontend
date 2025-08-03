@@ -1,17 +1,17 @@
 <template>
    <!-- Lobby View -->
   <div v-if="currentView === 'lobby'" class="lobby-container">
-    <h1>Gomoku Game Lobby</h1>
+    <h1>五子棋游戏大厅</h1>
     <div class="room-creator">
-      <input v-model="newRoomName" placeholder="Enter new room name" @keyup.enter="createRoom" />
-      <button @click="createRoom" :disabled="!newRoomName">Create Room</button>
+      <input v-model="newRoomName" placeholder="输入新房间名称" @keyup.enter="createRoom" />
+      <button @click="createRoom" :disabled="!newRoomName">创建并加入房间</button>
     </div>
-    <h2>Available Rooms</h2>
-    <div v-if="rooms.length === 0" class="no-rooms">No available rooms. Create one!</div>
+    <h2>可加入房间</h2>
+    <div v-if="rooms.length === 0" class="no-rooms">目前没有可加入的房间，创建一个吧！</div>
     <ul class="room-list">
       <li v-for="room in rooms" :key="room.id">
         <span>{{ room.name }} ({{ room.playerCount }}/2)</span>
-        <button @click="joinRoom(room.id)">Join</button>
+        <button @click="joinRoom(room.id)">加入</button>
       </li>
     </ul>
   </div>
@@ -19,17 +19,22 @@
   <div v-else-if="currentView === 'game'">
     <div class="main-container">
       <div class="game-status">
-        <p v-if="!isConnected">Connecting to server...</p>
-        <p v-else-if="serverState.isGameOver">
-          Game Over! {{serverState.winner ? `Player ${serverState.winner} Wins!` : 'Its a Draw!'}}
-        </p>
-        <p v-else-if="isMyTurn">
-          <span class="your-turn">●</span> Your Turn
-        </p>
-        <p v-else>
-          <span class="opponent-turn">○</span> Waiting for Opponent...
-        </p>
-        <p class="player-info">(You are Player {{ serverState.yourPlayerId }} at Room {{ serverState.roomName }})</p>
+        <div v-if="serverState.isGameOver" class="game-overstatus">
+          <p>
+            游戏结束！ {{serverState.winner ? `玩家 ${serverState.winner} 胜利！` : '平局！'}}
+          </p>
+          <button @click="playAgain" class="play-again-btn">重新开始游戏</button>
+        </div>
+        <template v-else>
+          <p v-if="!isConnected">连接中...</p>
+          <p v-else-if="isMyTurn">
+            <span class="your-turn">●</span> 你的回合
+          </p>
+          <p v-else>
+            <span class="opponent-turn">○</span> 等待对手...
+          </p>
+        </template>
+        <p class="player-info">(你是玩家 {{ serverState.yourPlayerId }} 当前房间： {{ serverState.roomName }})</p>
       </div>  
         <div class="board-container">
         <svg 
@@ -109,13 +114,6 @@
           </g>
 
         </svg>
-        <div v-if="serverState.isGameOver" class="victory-overlay">
-          <div class="victory-content">
-            <p>GameOver</p>
-            <h2>Player {{ serverState.winner ? `Player ${serverState.winner} Wins!` : 'Draw!' }}</h2>
-            <button @click="resetGame">Restart Game</button>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -314,8 +312,8 @@ function handleMovement(event) {
 
 
 
-function resetGame() {
-  window.location.reload(); // 重新加载页面以重置游戏
+function playAgain() {
+  currentView.value = 'lobby';
 }
 
 </script>
@@ -471,65 +469,25 @@ svg.my-turn-cursor {
   stroke: #bbb;
 }
 
-/* ... 胜利样式 ... */
-
-.victory-overlay {
-  position: absolute; /* 覆盖在棋盘上 */
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+.game-over-status {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  z-index: 100; /* 确保在最上层 */
+  gap: 10px; /* 在文字和按钮之间增加间距 */
 }
 
-.victory-content {
-  background-color: white;
-  padding: 20px 40px;
-  border-radius: 10px;
-  text-align: center;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  transform: scale(0.9);
-  animation: pop-in 0.3s forwards;
-}
-
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: scale(0.8);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.victory-content h2 {
-  margin-top: 0;
-  color: #333;
-}
-
-.victory-content p {
-  font-size: 1.2em;
-  margin: 15px 0;
-}
-
-.victory-content button {
-  padding: 10px 20px;
-  font-size: 1em;
+.play-again-btn {
+  padding: 8px 16px;
+  font-size: 0.9em;
   border: none;
   border-radius: 5px;
-  background-color: #42b983; /* Vue 绿色 */
+  background-color: #007bff; /* 蓝色，与游戏中的绿色区分 */
   color: white;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
-.victory-content button:hover {
-  background-color: #33a06f;
+.play-again-btn:hover {
+  background-color: #0056b3;
 }
-
 </style>
